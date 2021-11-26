@@ -1,0 +1,243 @@
+---
+title: "Google_data_analytics"
+author: "H"
+date: "9/8/2021"
+output: html_document
+---
+###Ask 
+#### People use Fitbit for what?
+####  What is the data trend?
+#### How we can use data for bellabeat marketing?
+
+### Prepare 
+### Prcess 
+
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggcorrplot)
+
+```
+
+#### Explore data 
+```{r}
+daily_data <- read.csv('Daily_Activity.csv', header =  TRUE, stringsAsFactors = FALSE)
+sleep_data <- read.csv('Sleep_data.csv', header = TRUE, stringsAsFactors = FALSE)
+```
+```{r}
+head(daily_data)
+```
+
+```{r}
+head(sleep_data)
+```
+#### change data format - date as charater to as date 
+```{r}
+daily_data$ActivityDate =as.Date(daily_data$ActivityDate, '%m/%d/%y')
+sleep_data$SleepDay =as.Date(sleep_data$SleepDay,'%m/%d/%y')
+```
+
+#### Add weekday data using wday
+```{r}
+daily_data$WeekDay <- wday(ymd(daily_data$ActivityDate), label = TRUE)
+sleep_data$WeekDay <- wday(ymd(sleep_data$SleepDay), label = TRUE)
+```
+
+
+#### Explore data part 2
+```{r}
+user_activity <- daily_data %>% group_by(Id) %>% summarise(n= n())
+user_sleep <- sleep_data %>% group_by(Id) %>% summarise(n=n())
+```
+
+#### merge Activity data and sleep data 
+```{r}
+merged_data <- merge(daily_data, sleep_data, by.x = c('Id', 'ActivityDate', 'WeekDay'), by.y = c("Id", "SleepDay", 'WeekDay'))
+head(merged_data)
+
+```
+#### Change Data Format
+```{r}
+merged_data$Id = as.character(merged_data$Id)
+merged_data$VeryActiveMinutes = as.numeric(merged_data$VeryActiveMinutes)
+merged_data$FairlyActiveMinutes = as.numeric(merged_data$FairlyActiveMinutes)
+merged_data$LightlyActiveMinutes = as.numeric(merged_data$LightlyActiveMinutes)
+merged_data$SedentaryMinutes = as.numeric(merged_data$SedentaryMinutes)
+merged_data$TotalMinutesAsleep = as.numeric(merged_data$TotalMinutesAsleep)
+merged_data$TotalTimeInBed = as.numeric(merged_data$TotalTimeInBed)
+merged_data$TotalSleepRecords = as.numeric(merged_data$TotalSleepRecords)
+merged_data$TotalActiveMinute = as.numeric(merged_data$TotalActiveMinute)
+merged_data$TotalSteps =as.numeric(merged_data$TotalSteps)
+merged_data$Calories= as.numeric(merged_data$Calories)
+```
+```{r}
+summary(merged_data)
+```
+### ***  We see most active day is Sunday and the least active day is Wednesday. Average sleep hour is 7 hours, average active hour is around 4 hours and average sedentary hour is 11 hours. Let's look deep into data.
+### Before go deep into data, we need to aggreate some dataset. 
+
+
+### Aggregate data from merge data 
+```{r}
+mergeDataClean <- merged_data %>% select(Id, ActivityDate, WeekDay,TotalSteps, TotalDistance,TotalSleepHour, TotalActiveHour,SedentaryHour,Calories)
+```
+```{r}
+head(mergeDataClean)
+```
+
+
+### Aggregate Average Active Distance data by Id and remove Id active less than a day
+```{r}
+UsersWeekActive <- mergeDataClean %>% group_by(Id, WeekDay) %>% summarise(AverageDistance = mean(TotalDistance), AverageActiveHour = mean(TotalActiveHour), AverageSleepHour =mean(TotalSleepHour)) %>% mutate(Count= n())
+```
+```{r}
+UsersWeekActiveClean = na.omit(UsersWeekActive[which(UsersWeekActive$Count >1),])
+head(UsersWeekActiveClean, 50)
+
+```
+
+### Aggreate Activity data by Id and remove ID if Active day is less than a day
+
+```{r}
+UserActivityData <- merged_data %>% group_by(Id, WeekDay) %>% 
+  summarise(AvgVeryActiveDistance = mean(VeryActiveDistance), AverageModeratelyActiveDistance =mean(ModeratelyActiveDistance), AverageLightActiveDistance= mean(LightActiveDistance), TotalDistance =mean(TotalDistance)) %>% mutate(Count =n())
+```
+```{r}
+head(UserActivityData, 60)
+UserActivityDataClean = na.omit(UserActivityData[which(UserActivityData$Count >1),])
+head(UserActivityDataClean, 60)
+
+```
+
+### Aggregate Active Time Data by Id and remove ID if Active day is less than a day
+```{r}
+UserActiveTime <- merged_data %>% group_by(Id, WeekDay) %>% summarise(AvgVeryActiveHour =mean(VeryActiveMinutes )/ 60, AvgFairlyActiveHour =mean(FairlyActiveMinutes)/60, AvgLightlyActiveHour =mean(LightlyActiveMinutes)/60, AvgTotalActiveHour= mean(TotalActiveHour)) %>% mutate(Count =n())
+```
+
+
+```{r}
+UserActiveTimeClean = na.omit(UserActiveTime[which(UserActiveTime$Count >1),])
+head(UserActiveTimeClean, 50)
+
+```
+
+#### Create Correlation Chart
+```{r}
+merged_data_num <- round(cor(mergeDataClean[sapply(mergeDataClean,is.numeric)]),1)
+head(merged_data_num)
+```
+
+#### Create Correlation plot 
+```{r}
+ggcorrplot(merged_data_num, hc.order = TRUE, type = "full", outline.color = "blue", lab = TRUE, method = 'circle') +
+labs(title='Daily Activity Correlation plot',
+caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+
+### Total Average Total Active Hour & Total Sleep Hour BoxPlot
+```{r}
+ggplot(aes(x= WeekDay,y=TotalActiveHour), data = mergeDataClean)+ geom_boxplot() + labs(title = 'Total Active Hour Per Day Box Plot',caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+```{r}
+ggplot(aes(x= WeekDay,y=TotalSleepHour), data = mergeDataClean)+ geom_boxplot() +labs(title = ' Total Sleep Hour Per Day BoxPlot', caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+
+```
+#### Total Distance by Weekday Histogram
+
+```{r}
+ggplot(aes(x =TotalDistance, fill =WeekDay), data = mergeDataClean)+ geom_histogram() + labs(title = 'Avctive Total Distance per Weekday Histogram')
+```
+#### Scatterplot correlation between TotalActive Hour and Total Sleep Hour 
+```{r}
+ggplot(aes(x =TotalActiveHour, y= TotalSleepHour), data = mergeDataClean)+ geom_point() + geom_smooth()
+```
+```{r}
+cor.test(merged_data$Calories, merged_data$TotalSteps, method=c("pearson"))
+
+```
+#### Correlation between total Sleep Hour  and Total distance
+```{r}
+ggplot(aes(x= TotalSleepHour, y= TotalDistance), data = mergeDataClean) + geom_point()+geom_smooth()
+```
+
+
+### There is no strong corelation between Total Sleep Hour and Total Acitve Hour , Total Sleep Hour and Total Distance. We can't say activity does not affect the sleep hour.
+
+
+
+### Weekday Average Total Distance, SleepHour, and Total active hour by ID
+
+```{r}
+ggplot (aes(x =WeekDay, y=AverageDistance, group= 1), data= UsersWeekActiveClean) +geom_line() + facet_wrap(~Id) +labs(title = 'Average Total Distance per Weekday by ID')
+```
+
+```{r}
+ggplot (aes(x =WeekDay, y=AverageActiveHour, group= 1), data= UsersWeekActiveClean) +geom_line() + facet_wrap(~Id)+ labs(title = 'Average Total Active Hour per Weekday by ID',caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+
+```
+```{r}
+ggplot (aes(x =WeekDay, y=AverageSleepHour, group= 1), data= UsersWeekActiveClean) +geom_line() + facet_wrap(~Id) + labs(title = 'Average Total Sleep Hour per Weekday by ID',caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+
+```
+
+### We can see most of Active Hour SleepHour floats around 6~8 hours and Average Distance floats arond 5-10 miles. Average sleep hour goes up on Friday on most users records. 
+
+
+```{r}
+ggplot (aes(x =WeekDay, y=AvgVeryActiveDistance, group= 1), data= UserActivityDataClean) +geom_line() + facet_wrap(~Id) + labs(title = 'Average Very Active Distance per Weekday by ID',caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+```{r}
+ggplot (aes(x =WeekDay, y=AverageModeratelyActiveDistance, group= 1), data= UserActivityDataClean) +geom_line() + facet_wrap(~Id) + labs(title = 'Average ModeratelyActiveDistanc per Weekday by ID', caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+
+```{r}
+ggplot (aes(x =WeekDay, y=AverageLightActiveDistance, group= 1), data= UserActivityDataClean) +geom_line() + facet_wrap(~Id) + labs(title = 'AverageLightActiveDistance by ID', caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+```{r}
+ggplot (aes(x =WeekDay, y=TotalDistance, group= 1), data= UserActivityDataClean) +geom_line() + facet_wrap(~Id) + labs(title = 'TotalDistance by ID', caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+### Most users who track their record regularly, keep thier total distance between 5-10 miles. Most user have longest light activite distance 4-6 miles and very active distance floats around 2-4 miles 
+
+
+### Active Hour line graph per ID 
+```{r}
+ggplot (aes(x =WeekDay, y=AvgVeryActiveHour, group= 1), data= UserActiveTimeClean) +geom_line() + facet_wrap(~Id) + labs(title = 'AvgVeryActiveHour by ID',caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+
+```{r}
+ggplot (aes(x =WeekDay, y=AvgFairlyActiveHour, group= 1), data= UserActiveTimeClean) +geom_line() + facet_wrap(~Id) + labs(title = 'Avg Fairy ActiveHour by ID',caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+```{r}
+ggplot (aes(x =WeekDay, y=AvgLightlyActiveHour, group= 1), data= UserActiveTimeClean) +geom_line() + facet_wrap(~Id) + labs(title = 'Avg Lightly Active Hour by ID',caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+
+```
+
+```{r}
+
+ggplot (aes(x =WeekDay, y=AvgTotalActiveHour, group= 1), data= UserActiveTimeClean) +geom_line() + facet_wrap(~Id) + labs(title = 'Avg Total ActiveHour by ID',caption='Data source: FitBit Fitness Tracker, collected by Mobius')
+```
+### We can see most user have higher lightly active hours around 3-4 hours, and less very active hours per day, around 1 hour. We can assume mostly users do very active workout an hour and spend most of active hours as light activity such as walking.  
+
+###  Major trend in Fitbit data 
+#### + Based on fitbit user data,average active hours is 4 hours, average total sleep hours is 7 hours, Average Sedentary hours is 11.56 hours.
+#### + Mostly users spend total active minute as lightly activity. This active minuite calculates by MET ratio.
+#### + Most Active day is Thursday and most uesr sleep longer on Friday.
+#### + Users who track thier records regularly have regular activitiy hours and sleep hours 
+#### + Most user have longest active hours with light activity, and users spend very active time (perhaps intense exercise) around an hour.
+#### + There are no correlation bewteen Sleep hour and activity.
+
+### Bellabeat can use user trends on thier smart watch marketing. 
+### * Target audience : Woman who is interested in health, and pursue balanced lifestlye between work and freetime. 
+### * Target Demographic : Age 25-40, Area : Urban , Marital : single, Income: 60 K ~ 
+
+### Suggestion for Bellabeat concept 
+
+### 1.** Sleep Time / Work out Time notification** :alarm set up for regualr sleep time and work out time for maintaining regular daily routine.
+### 2. **Sophisticated Workout setup : For the users who would like to do different type of work out, Bellabeat can let users choose different tracking activitiy mode and calculate heartrate / distance /calories based on exercise mode and set the goal for weekdays /weekends.
+### 3. Track heart rate/ exercise/ sleeep hour for period : Bellabeat target the young and trendy woman. So Bellabeat can provide Biorhythm calculation and mood check up for their special days. Also user can track sleep hours and Bellabeat app can suggest proper exercise for releasing bodyache or pain. 
+
+### Key Marketing Campaign Slogan 
+### Bellabeat track your Biorhythm calculation for your balanced life. 
+### Track your activity with different mode and monitor your body. 
+### Check your health record and maintain regular balance for your body. 
